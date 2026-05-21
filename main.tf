@@ -14,13 +14,10 @@ locals {
     { for k, v in data.azurerm_key_vault_secret.kv_secrets : k => v.value }
   )
 
-  env_vars = [
-    for k, v in var.environment_variables : { name = k, value = v }
-  ]
-
-  secure_env_vars = [
-    for k, v in local.all_secure_env_vars : { name = k, secureValue = v }
-  ]
+  env_vars = concat(
+    [for k, v in var.environment_variables : { name = k, value = v }],
+    [for k, v in local.all_secure_env_vars : { name = k, secureValue = v }]
+  )
 
   volume_mounts = [
     for vol_name, vol in var.volumes : {
@@ -100,10 +97,9 @@ resource "azapi_resource" "container_group" {
               memoryInGB = var.memory_gb
             }
           }
-          ports = [{ port = 4141, protocol = "TCP" }]
-          environmentVariables       = local.env_vars
-          secureEnvironmentVariables = local.secure_env_vars
-          volumeMounts               = local.volume_mounts
+          ports                = [{ port = 4141, protocol = "TCP" }]
+          environmentVariables = local.env_vars
+          volumeMounts         = local.volume_mounts
         }
       }]
       osType  = "Linux"
@@ -123,11 +119,12 @@ resource "azapi_resource" "container_group" {
     }
   }
 
-  # secureEnvironmentVariables, storageAccountKey, and workspaceKey are write-only in ARM:
+  # secureValue, storageAccountKey, and workspaceKey are write-only in ARM:
   # GET responses return null for these fields, which would cause perpetual diffs.
+  # Rotate secrets by running: terraform apply -replace=module.atlantis.azapi_resource.container_group
   lifecycle {
     ignore_changes = [
-      body.properties.containers[0].properties.secureEnvironmentVariables,
+      body.properties.containers[0].properties.environmentVariables,
       body.properties.volumes,
       body.properties.diagnostics,
     ]
