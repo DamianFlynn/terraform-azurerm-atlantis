@@ -1,0 +1,9 @@
+# Terraform working artifacts. `terraform test` and `terraform validate` both
+# require an init, so these appear in a clean clone the moment anyone runs the
+# test suite — they are not part of the module.
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan

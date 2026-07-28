@@ -83,7 +83,29 @@ variable "atlantis_server_config" {
     log_level                = optional(string, "info")
     azuredevops_user         = optional(string)
     azuredevops_webhook_user = optional(string)
-    repo_config              = optional(string)
+
+    # Path to a repos.yaml ON THE CONTAINER (e.g. a mounted share), passed as
+    # --repo-config. MUTUALLY EXCLUSIVE with var.atlantis_repo_config_repos,
+    # which becomes --repo-config-json; Atlantis rejects both together. The
+    # precondition in main.tf enforces that.
+    #
+    # Required if you need any top-level repo-config key the closed
+    # atlantis_repo_config_repos shape cannot express — `policies:` in
+    # particular (owners + policy_sets), which has no JSON-flag equivalent.
+    repo_config = optional(string)
+
+    # --enable-policy-checks. Turns on the native `policy_check` workflow stage.
+    #
+    # ⚠️ This is not a local opt-in. It sets PolicyCheck=true on Atlantis's
+    #    DEFAULT repo and appends `policies_passed` to the default apply
+    #    requirements, so EVERY repo on the server inherits both unless a
+    #    matching `repos:` entry overrides them. Scope it with an explicit
+    #    `policy_check: false` on your catch-all entry.
+    #
+    # ⚠️ Atlantis SILENTLY SKIPS the policy_check stage when this is unset.
+    #    A workflow that declares the stage without this flag is not a weaker
+    #    guard — it is no guard, and nothing in a PR reveals it.
+    enable_policy_checks = optional(string)
   })
   default = {}
 }
