@@ -61,6 +61,7 @@ locals {
     "azuredevops-webhook-user" = var.atlantis_server_config.azuredevops_webhook_user
     "repo-config-json"         = local.repo_config_json
     "repo-config"              = var.atlantis_server_config.repo_config
+    "enable-policy-checks"     = var.atlantis_server_config.enable_policy_checks
   }
 
   atlantis_command = concat(
@@ -128,6 +129,29 @@ resource "azapi_resource" "container_group" {
       body.properties.volumes,
       body.properties.diagnostics,
     ]
+
+    # --repo-config and --repo-config-json are mutually exclusive; Atlantis
+    # refuses to start when given both. Before this check the module emitted
+    # both whenever a caller set repo_config while atlantis_repo_config_repos
+    # was still non-empty — which is exactly the shape of a migration from the
+    # JSON flag to a file, i.e. the one time anyone sets repo_config at all.
+    #
+    # ACI would accept the apply and the container would then crash-loop on a
+    # startup flag error, so the failure surfaces as a dead server rather than
+    # a failed plan. Fail at plan time instead.
+    precondition {
+      condition = !(
+        var.atlantis_server_config.repo_config != null &&
+        length(var.atlantis_repo_config_repos) > 0
+      )
+      error_message = join(" ", [
+        "atlantis_server_config.repo_config and atlantis_repo_config_repos are mutually exclusive:",
+        "they become --repo-config and --repo-config-json, and Atlantis refuses to start with both.",
+        "Migrating to a file? Move the repos list INTO that file and set atlantis_repo_config_repos = []",
+        "in the same change — the file must already carry every repo the JSON flag was providing,",
+        "or repos silently fall back to Atlantis's permissive defaults."
+      ])
+    }
   }
 
   depends_on = [azurerm_role_assignment.atlantis]
